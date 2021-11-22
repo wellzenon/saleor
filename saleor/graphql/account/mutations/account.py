@@ -134,6 +134,7 @@ class AccountRegister(ModelMutation):
     def save(cls, info, user, cleaned_input):
         password = cleaned_input["password"]
         user.set_password(password)
+        user.search_document = f"{user.email}{user.first_name}{user.last_name}"
         if settings.ENABLE_ACCOUNT_CONFIRMATION_BY_EMAIL:
             user.is_active = False
             user.save()
@@ -330,6 +331,8 @@ class AccountAddressCreate(ModelMutation, I18nMixin):
         user = info.context.user
         instance.user_addresses.add(user)
         info.context.plugins.customer_updated(user)
+        user.search_document = utils.prepare_user_search_document_value(user)
+        user.save(update_fields=["search_document"])
 
 
 class AccountAddressUpdate(BaseAddressUpdate):
@@ -531,7 +534,8 @@ class ConfirmEmailChange(BaseMutation):
             )
 
         user.email = new_email
-        user.save(update_fields=["email"])
+        user.search_document = utils.prepare_user_search_document_value(user)
+        user.save(update_fields=["email", "search_document"])
 
         channel_slug = clean_channel(
             data.get("channel"), error_class=AccountErrorCode
