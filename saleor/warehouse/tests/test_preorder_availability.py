@@ -14,11 +14,11 @@ from ..availability import (
 )
 
 
-@patch("saleor.warehouse.availability.check_preorder_threshold_bulk")
+@patch("saleor.warehouse.availability.check_preorder_threshold")
 @patch("saleor.warehouse.availability.check_stock_quantity")
 def test_check_stock_and_preorder_quantity(
     mock_check_stock_quantity,
-    mock_check_preorder_threshold_bulk,
+    mock_check_preorder_threshold,
     variant,
     preorder_variant_channel_threshold,
     channel_USD,
@@ -29,11 +29,13 @@ def test_check_stock_and_preorder_quantity(
     check_stock_and_preorder_quantity(
         preorder_variant_channel_threshold, "US", channel_USD.slug, 1
     )
-    mock_check_preorder_threshold_bulk.assert_called_once()
-    assert mock_check_preorder_threshold_bulk.call_args[0][0] == [
-        preorder_variant_channel_threshold
-    ]
-    assert mock_check_preorder_threshold_bulk.call_args[0][1] == [1]
+    mock_check_preorder_threshold.assert_called_once()
+    assert (
+        mock_check_preorder_threshold.call_args[0][0]
+        == preorder_variant_channel_threshold
+    )
+
+    assert mock_check_preorder_threshold.call_args[0][1] == 1
 
 
 @patch("saleor.warehouse.availability.check_preorder_threshold_bulk")
@@ -87,6 +89,7 @@ def test_check_preorder_threshold_bulk_channel_threshold(
 ):
 
     variant = preorder_variant_channel_threshold
+    global_quantity_limit = 30
     # test it doesn't raise an error for available preorder variant
     channel_listings = variant.channel_listings.all()
     available_preorder_quantity = channel_listings.annotate(
@@ -95,7 +98,10 @@ def test_check_preorder_threshold_bulk_channel_threshold(
     )[0].available_preorder_quantity
     assert (
         check_preorder_threshold_bulk(
-            [variant], [available_preorder_quantity], channel_USD.slug
+            [variant],
+            [available_preorder_quantity],
+            channel_USD.slug,
+            global_quantity_limit,
         )
         is None
     )
@@ -103,7 +109,10 @@ def test_check_preorder_threshold_bulk_channel_threshold(
     # test if it raises error for exceeded quantity
     with pytest.raises(InsufficientStock):
         check_preorder_threshold_bulk(
-            [variant], [available_preorder_quantity + 1], channel_USD.slug
+            [variant],
+            [available_preorder_quantity + 1],
+            channel_USD.slug,
+            global_quantity_limit,
         )
 
 
@@ -111,6 +120,7 @@ def test_check_preorder_threshold_bulk_global_threshold(
     preorder_variant_global_threshold, channel_USD
 ):
     variant = preorder_variant_global_threshold
+    global_quantity_limit = 30
     channel_listings = variant.channel_listings.all()
     global_allocation = sum(
         channel_listings.annotate(
@@ -124,7 +134,10 @@ def test_check_preorder_threshold_bulk_global_threshold(
     # test it doesn't raise an error for available preorder variant
     assert (
         check_preorder_threshold_bulk(
-            [variant], [available_preorder_quantity], channel_USD.slug
+            [variant],
+            [available_preorder_quantity],
+            channel_USD.slug,
+            global_quantity_limit,
         )
         is None
     )
@@ -132,7 +145,10 @@ def test_check_preorder_threshold_bulk_global_threshold(
     # test if it raises error for exceeded quantity
     with pytest.raises(InsufficientStock):
         check_preorder_threshold_bulk(
-            [variant], [available_preorder_quantity + 1], channel_USD.slug
+            [variant],
+            [available_preorder_quantity + 1],
+            channel_USD.slug,
+            global_quantity_limit,
         )
 
 
@@ -143,6 +159,7 @@ def test_check_preorder_threshold_bulk_global_and_channel_threshold(
     channel_PLN,
 ):
     variant = preorder_variant_global_and_channel_threshold
+    global_quantity_limit = 30
 
     channel_listings = variant.channel_listings.all()
     channel_listings = channel_listings.annotate_preorder_quantity_allocated()
@@ -168,7 +185,7 @@ def test_check_preorder_threshold_bulk_global_and_channel_threshold(
     # test it doesn't raise any error if global limit is not exceeded
     assert (
         check_preorder_threshold_bulk(
-            [variant], [global_availability], channel_USD.slug
+            [variant], [global_availability], channel_USD.slug, global_quantity_limit
         )
         is None
     )
@@ -180,4 +197,5 @@ def test_check_preorder_threshold_bulk_global_and_channel_threshold(
             [variant],
             [channel_listing_USD_availability],
             channel_USD.slug,
+            global_quantity_limit,
         )
